@@ -298,14 +298,14 @@ def normalize(df, kind='std'):
     result = df.copy()
     if kind == 'std':
         for feature_name in df.columns:
-            if feature_name != 'logg_binary':
+            if feature_name != 'logg_binary' and feature_name != 'logg_trinary':
                 std_value = df[feature_name].std()
                 mean_value = df[feature_name].mean()
                 result[feature_name] = (df[feature_name] - mean_value) / std_value
 
     if kind == 'min_max':
         for feature_name in df.columns:
-            if feature_name != 'logg_binary':
+            if feature_name != 'logg_binary' and feature_name != 'logg_trinary':
                 max_value = df[feature_name].max()
                 min_value = df[feature_name].min()
                 result[feature_name] = (df[feature_name] - min_value) / (max_value - min_value)
