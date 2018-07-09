@@ -88,7 +88,7 @@ class catalogue(object):
         self.dfeh = dfeh
         
 
-def load_data(filename='./cfis_ps_segue_gaia.fits', dust_filename='./polecount_dust.fits'):
+def load_data(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./data/polecount_dust.fits'):
 
     """
     Function to load data from stellar catalogue
@@ -174,6 +174,7 @@ def load_data(filename='./cfis_ps_segue_gaia.fits', dust_filename='./polecount_d
     
     # Generate the inputs and outputs catalogues
     inputs = pd.DataFrame()
+    inputs_col = pd.DataFrame()
     outputs = pd.DataFrame()
     error = pd.DataFrame()
 
@@ -198,6 +199,118 @@ def load_data(filename='./cfis_ps_segue_gaia.fits', dust_filename='./polecount_d
 
     return inputs, outputs, error, df_carlo
 
+def load_data_glob(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./data/polecount_dust.fits'):
+
+    """
+    Function to load data from stellar catalogue
+    - Add values to pandas dataframe
+    - Applies a filter to get the best data
+    - Applies dust correction 
+    - Runs a monte carlo simulation on data to create 10*(Number of stars)
+    - Separates parameters into inputs, outputs, and errors for machine learning.
+    =============================================
+    
+    Input: Stellar catalogue, dust file (fits)
+    
+    Output: 4 monte-carlo'd dataframes with inputs, outputs, error, and all parameters
+    """
+
+    hdulist = fits.open(filename)
+    data=hdulist[1].data        
+    ra=data.field(0)
+    dec=data.field(1)
+    u=data.field(2) #u
+    g=data.field(10) #g
+    r=data.field(12) #r
+    i=data.field(14) #i
+    z=data.field(16) #z
+    y=data.field(18) #y
+    G=data.field(66) #G
+    BP=data.field(68) #BP
+    RP=data.field(70) #RP
+    du=data.field(3) #du
+    dg=data.field(11) #dg
+    dr=data.field(13) #dr
+    di=data.field(15) #di
+    dz=data.field(17) #dz
+    dy=data.field(19) #dy
+    nG=data.field(67) #nobs G
+    nBP=data.field(69) #nobs BP
+    nRP=data.field(71) #nobs RP
+
+    hdulist.close()
+    
+    column_headers = []
+ 
+    df= pd.DataFrame()
+
+    # loading into a pandas dataframe, but swapping bytes due to strange error.
+    df['ra'], df['dec'] = ra.byteswap().newbyteorder(), dec.byteswap().newbyteorder()
+    df['g'], df['u'], df['r'] =  g.byteswap().newbyteorder(), u.byteswap().newbyteorder(), r.byteswap().newbyteorder()
+    df['i'], df['z'], df['y'] = i.byteswap().newbyteorder(), z.byteswap().newbyteorder(), y.byteswap().newbyteorder()
+    df['G'], df['BP'], df['RP'] = G.byteswap().newbyteorder(), BP.byteswap().newbyteorder(), RP.byteswap().newbyteorder()
+    df['du'], df['dg'] = du.byteswap().newbyteorder(), dg.byteswap().newbyteorder()
+    df['dr'], df['di'], df['dz'] = dr.byteswap().newbyteorder(), di.byteswap().newbyteorder(), dz.byteswap().newbyteorder()
+    df['dy'] = dy.byteswap().newbyteorder()
+    df['nG'], df['nBP'], df['nRP'] = nG.byteswap().newbyteorder(), nBP.byteswap().newbyteorder(), nRP.byteswap().newbyteorder()
+        
+    criteria = (df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)
+    
+    df_filtered = df[criteria]
+    df_filtered.reset_index()
+    
+    # Do a monte-carlo sample
+    df_carlo = monte_carlo_glob(df_filtered)
+    df_carlo.reset_index(drop=True)
+    # Calculate the extinction
+    EBV=get_EBV(dust_filename, df_carlo['ra'],df_carlo['dec'])
+    
+    # Generate the inputs and outputs catalogues
+    inputs = pd.DataFrame()
+
+    # Dered data for input
+    inputs['u'] = df_carlo['u'].values - 4.239*EBV # I'm pretending these are SDSS band for u, but it is not and PS for the others!
+    inputs['g'] = df_carlo['g'].values - 3.172*EBV #
+    inputs['r'] = df_carlo['r'].values - 2.271*EBV #
+    inputs['i'] = df_carlo['i'].values - 1.682*EBV #
+    inputs['z'] = df_carlo['z'].values - 1.322*EBV #
+    inputs['y'] = df_carlo['y'].values - 1.087*EBV #
+    inputs['G'] = df_carlo['G'].values - 0.85926*EBV # Assume extinction coefficiants from Malhan+ 2018b
+    inputs['BP'] = df_carlo['BP'].values - 1.06794*EBV
+    inputs['RP'] = df_carlo['RP'].values - 0.65199*EBV
+    
+    return inputs
+
+def monte_carlo_glob(df):
+    """
+    Takes a pandas dataframe and runs a monte-carlo simulation on the target 
+    labels.
+    ====================================================================
+    Inputs: Pandas df
+    
+    Outputs: Monte-carlo'd pandas df
+    """
+    
+    nb_increase=10 # Number of montecarlo sample 
+    size = len(df['u'])
+    df_old = df
+
+    for nb in range(1,nb_increase):
+        df_tmp = df_old
+        df_n = pd.DataFrame()
+        df_n['u'] = df_old['u'].values + np.random.normal(0.0, 1.0, size)*df_old['du'].values
+        df_n['g'] = df_old['g'].values + np.random.normal(0.0, 1.0, size)*df_old['dg'].values
+        df_n['r'] = df_old['r'].values + np.random.normal(0.0, 1.0, size)*df_old['dr'].values
+        df_n['i'] = df_old['i'].values + np.random.normal(0.0, 1.0, size)*df_old['di'].values
+        df_n['z'] = df_old['z'].values + np.random.normal(0.0, 1.0, size)*df_old['dz'].values
+        df_n['y'] = df_old['y'].values + np.random.normal(0.0, 1.0, size)*df_old['dy'].values
+
+        df_tmp.update(df_n)
+        
+        df = pd.concat([df, df_tmp], ignore_index=True)
+
+    return df
+
 def monte_carlo(df):
     """
     Takes a pandas dataframe and runs a monte-carlo simulation on the target 
@@ -221,6 +334,7 @@ def monte_carlo(df):
         df_n['i'] = df_old['i'].values + np.random.normal(0.0, 1.0, size)*df_old['di'].values
         df_n['z'] = df_old['z'].values + np.random.normal(0.0, 1.0, size)*df_old['dz'].values
         df_n['y'] = df_old['y'].values + np.random.normal(0.0, 1.0, size)*df_old['dy'].values
+        
         df_n['Teff'] = df_old['Teff'].values + np.random.normal(0.0, 1.0, size)*df_old['dTeff'].values        
         df_n['logg'] = df_old['logg'].values + np.random.normal(0.0, 1.0, size)*df_old['dlogg'].values
         df_n['feh'] = df_old['feh'].values + np.random.normal(0.0, 1.0, size)*df_old['dfeh'].values
