@@ -141,6 +141,7 @@ def load_data(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./data/p
     indexes = np.array([ra, dec, u, g, r, i, z, y, G, BP, RP, du, dg, dr, di, dz, dy, Teff, logg, feh, dTeff, dlogg, dfeh])
     
     df= pd.DataFrame()
+    
 
     # loading into a pandas dataframe, but swapping bytes due to strange error.
     df['ra'], df['dec'] = ra.byteswap().newbyteorder(), dec.byteswap().newbyteorder()
@@ -237,6 +238,8 @@ def load_data_glob(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./d
     nG=data.field(67) #nobs G
     nBP=data.field(69) #nobs BP
     nRP=data.field(71) #nobs RP
+    pmdec = data.field(53) # proper motion
+    pmra = data.field(51) # proper motion
 
     hdulist.close()
     
@@ -253,14 +256,15 @@ def load_data_glob(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./d
     df['dr'], df['di'], df['dz'] = dr.byteswap().newbyteorder(), di.byteswap().newbyteorder(), dz.byteswap().newbyteorder()
     df['dy'] = dy.byteswap().newbyteorder()
     df['nG'], df['nBP'], df['nRP'] = nG.byteswap().newbyteorder(), nBP.byteswap().newbyteorder(), nRP.byteswap().newbyteorder()
-        
-    criteria = (df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)
+    df['pmra'], df['pmdec'] = pmra.byteswap().newbyteorder(), pmdec.byteswap().newbyteorder()
+         
+    #criteria = (df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)
     
-    df_filtered = df[criteria]
+    df_filtered = df#[criteria]
     df_filtered.reset_index()
     
     # Do a monte-carlo sample
-    df_carlo = monte_carlo_glob(df_filtered)
+    df_carlo = df_filtered#monte_carlo_glob(df_filtered)
     df_carlo.reset_index(drop=True)
     # Calculate the extinction
     EBV=get_EBV(dust_filename, df_carlo['ra'],df_carlo['dec'])
@@ -278,6 +282,10 @@ def load_data_glob(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./d
     inputs['G'] = df_carlo['G'].values - 0.85926*EBV # Assume extinction coefficiants from Malhan+ 2018b
     inputs['BP'] = df_carlo['BP'].values - 1.06794*EBV
     inputs['RP'] = df_carlo['RP'].values - 0.65199*EBV
+    
+    inputs['ra'] = df_carlo['ra']
+    inputs['dec'] = df_carlo['dec']
+    inputs['pmra'], inputs['pmdec'] = df_carlo['pmra'], df_carlo['pmdec']
     
     return inputs
 
