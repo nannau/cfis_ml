@@ -22,6 +22,16 @@ from keras.engine.topology import Layer
 from keras.optimizers import Adam
 from keras import backend as K
 
+from sklearn import datasets
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import train_test_split
+
+from sklearn.naive_bayes import GaussianNB  
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import cross_val_predict
+
+from keras.metrics import categorical_accuracy
+
 import pylab as P
 from scipy.optimize import curve_fit
 from matplotlib import gridspec
@@ -433,3 +443,14 @@ def normalize(df, kind='std'):
                 result[feature_name] = (df[feature_name] - min_value) / (max_value - min_value)
             
     return result
+
+
+def criteria_function(inputs_NGC, std_x, col_1, col_2):
+    ra_cut = (inputs_NGC['pmra']>(inputs_NGC['pmra'].mean()-std_x*(inputs_NGC['pmra'].std()))) & (inputs_NGC['pmra']<(inputs_NGC['pmra'].mean()+std_x*(inputs_NGC['pmra'].std())))
+    dec_cut = (inputs_NGC['pmdec']>(inputs_NGC['pmdec'].mean()-std_x*(inputs_NGC['pmdec'].std()))) & (inputs_NGC['pmdec']<(inputs_NGC['pmdec'].mean()+std_x*(inputs_NGC['pmdec'].std()))) 
+    # Apply the color cuts for machine learning 
+    ui_thres = 1.3
+    gz_thres = 0.05
+    ml_cut =  (inputs_NGC['u']-inputs_NGC['i'] >= ui_thres) & (inputs_NGC['u']-inputs_NGC['i'] <= 2.6) & (inputs_NGC['g']-inputs_NGC['z'] >= gz_thres)
+    criteria = ra_cut & dec_cut & (inputs_NGC['u']-inputs_NGC['G'] < col_1) & (inputs_NGC['u']-inputs_NGC['G'] > col_2)
+    return criteria
