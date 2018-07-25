@@ -418,7 +418,7 @@ def ML2_get_logg(inputs,outputs):
     x = Activation(u'relu')(x)
     x = BatchNormalization()(x)    
 
-def normalize(df, kind='std'):
+def normalize(df, df_1 = '', kind='std'):
     """
     Function to normalize pandas dataframe values. 
     Can be max_min or the standard deviation, mean method 
@@ -441,6 +441,15 @@ def normalize(df, kind='std'):
                 max_value = df[feature_name].max()
                 min_value = df[feature_name].min()
                 result[feature_name] = (df[feature_name] - min_value) / (max_value - min_value)
+           
+    # Apply a normalization from training set onto test set. 
+    if kind == 'custom':
+        for feature_name in df_1.columns:
+            if feature_name != 'logg_binary' and feature_name != 'logg_trinary':
+                std_value = df_1[feature_name].std()
+                mean_value = df_1[feature_name].mean()
+                # Apply std and mean from train set onto test set. For globular clusters!
+                result[feature_name] = (df[feature_name] - mean_value) / std_value
             
     return result
 
