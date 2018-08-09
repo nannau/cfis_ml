@@ -56,64 +56,6 @@ import pandas as pd
 from IPython.display import display, HTML
 import pickle
 
-class Predictor_weighted_loss_layer(Layer):
-    __name__ = u'pred_loss_layer'
-
-    def __init__(self, **kwargs):
-        self.is_placeholder = True
-        super(Predictor_weighted_loss_layer, self).__init__(**kwargs)
-
-    def lossfun(self, y_true, y_pred, y_err):
-        #mae_loss = K.mean(K.abs((y_true - y_pred))/(y_err+0.01))
-        mae_loss = K.mean(K.abs((y_true - y_pred)))
-        return mae_loss
-
-    def call(self, inputs):
-        y_true = inputs[0]
-        y_pred = inputs[1]
-        y_err = inputs[2]
-        loss = self.lossfun(y_true, y_pred, y_err)
-        self.add_loss(loss, inputs=inputs)
-
-        return y_true
-    
-# this is used to compile the model, returning a zero-loss so no gradients are returned by the regular keras way of
-# analyzing a loss function. The weighted loss above will be the only one that matters
-def zero_loss(y_true, y_pred):
-    return K.zeros_like(y_true)
-
-
-class catalogue(object):
-    """
-    Condensing code to draw from fits catalogue of Milky Way stars for machine learning.
-    
-    Will be using panstarrs, gaia, cfis, and sequey for this extraction.
-    """
-
-    def __init__(self, ra, dec, u, g, r, i, z, y, du, dg, dr, di, dz, dy, Teff, logg, feh, dTeff, dlogg, dfeh):
-        """Return a catalogue's physical parameters."""
-        self.ra = ra
-        self.dec = dec
-        self.u = u
-        self.g = g
-        self.r = r
-        self.i = i
-        self.z = z
-        self.y = y
-        self.du = du
-        self.dg = dg
-        self.dr = dr
-        self.di = di
-        self.dz = dz
-        self.dy = dy
-        self.Teff = Teff
-        self.logg = logg
-        self.feh = feh
-        self.dTeff = dTeff
-        self.dlogg = dlogg
-        self.dfeh = dfeh
-        
-
 def load_data(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./data/polecount_dust.fits'):
 
     """
@@ -407,34 +349,6 @@ def get_EBV(dust_filename, ra, dec):
         #print l[i],b[i],pl,pb,EBV_map[pb,pl]
     return EBV
 
-def ML2_get_logg(inputs,outputs):
-    """
-    Logg prediction NN
-    """
-    
-    input_shape = inputs.shape[1]
-    output_shape = 1
-    initializer='he_normal'
-    
-    inputs = Input(shape=(input_shape,))
-    
-    x = Dense(32,kernel_initializer=initializer)(inputs)
-    x = Activation(u'relu')(x)
-    x = BatchNormalization()(x)
-    
-    x = Dense(5096,kernel_initializer=initializer)(x)
-    x = Activation(u'relu')(x)
-    x = BatchNormalization()(x)
-    x = Dropout(0.1)(x)
-
-    x = Dense(256,kernel_initializer=initializer)(x)
-    x = Activation(u'relu')(x)
-    x = BatchNormalization()(x)    
-    
-    x = Dense(256,kernel_initializer=initializer)(x)
-    x = Activation(u'relu')(x)
-    x = BatchNormalization()(x)    
-
 def normalize(df, df_1 = '', kind='std'):
     """
     Function to normalize pandas dataframe values. 
@@ -471,7 +385,10 @@ def normalize(df, df_1 = '', kind='std'):
     return result
 
 def change_to_colour(input_test, input_train_col):
-    # Make data to train on colours and re normalize
+    """
+    Make data to train on colours and re normalize
+    Returns: Normalized colors/input features
+    """
     inputs_col = pd.DataFrame()
 
     inputs_col['u-g']=input_test['u']-input_test['g']
@@ -488,8 +405,14 @@ def change_to_colour(input_test, input_train_col):
     return inputs_col
  
 def criteria_function(inputs_NGC, std_x, col_1, col_2):
-    # apply cuts to the globular cluster catalog in proper motion. Also apply basic color cuts to show CMD better
-    
+    """
+    Inputs_NGC: Inputs of globular cluster
+    std_x: The deviation from proper motions to cut
+    col_1: lefthand color cut of CMD
+    col_2: righthang color cutof CMD
+    Apply cuts to the globular cluster catalog in proper motion. Also apply basic color cuts to show CMD better
+    Returns the criteria as laid out by parameters
+    """
     ra_cut = (inputs_NGC['pmra']>(inputs_NGC['pmra'].mean()-std_x*(inputs_NGC['pmra'].std()))) & (inputs_NGC['pmra']<(inputs_NGC['pmra'].mean()+std_x*(inputs_NGC['pmra'].std())))
     dec_cut = (inputs_NGC['pmdec']>(inputs_NGC['pmdec'].mean()-std_x*(inputs_NGC['pmdec'].std()))) & (inputs_NGC['pmdec']<(inputs_NGC['pmdec'].mean()+std_x*(inputs_NGC['pmdec'].std()))) 
    
@@ -498,6 +421,9 @@ def criteria_function(inputs_NGC, std_x, col_1, col_2):
     return criteria
 
 def prob_frac(bin_width, inputs_NGC):
+    """
+    Get the luminosity probability function
+    """
     bin_loc = []
     avg_prob_dwarf = []
     avg_prob_giant = []
@@ -509,6 +435,9 @@ def prob_frac(bin_width, inputs_NGC):
     return avg_prob_dwarf, avg_prob_giant, bin_loc
 
 def lum_frac(bin_width, inputs_NGC):
+    """
+    Get the luminosity fraction of dwarfs/giants to total
+    """
     fraction_giant = []
     fraction_dwarf = []
     bin_loc = []
