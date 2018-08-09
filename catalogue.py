@@ -22,6 +22,22 @@ from keras.engine.topology import Layer
 from keras.optimizers import Adam
 from keras import backend as K
 
+import lime
+import lime.lime_tabular
+import lime as lime
+import sklearn
+import numpy as np
+import sklearn
+import sklearn.ensemble
+import sklearn.metrics
+from sklearn.model_selection import GridSearchCV
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_curve, auc
+import random
+import re
+
 from sklearn import datasets
 from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import train_test_split
@@ -454,13 +470,141 @@ def normalize(df, df_1 = '', kind='std'):
             
     return result
 
+def change_to_colour(input_test, input_train_col):
+    # Make data to train on colours and re normalize
+    inputs_col = pd.DataFrame()
 
+    inputs_col['u-g']=input_test['u']-input_test['g']
+    inputs_col['g-r']=input_test['g']-input_test['r']
+    inputs_col['r-i']=input_test['r']-input_test['i']
+    inputs_col['i-z']=input_test['i']-input_test['z']
+    inputs_col['z-y']=input_test['z']-input_test['y']
+    inputs_col['u-G']=input_test['u']-input_test['G']
+    inputs_col['u-RP']=input_test['u']-input_test['RP']
+    inputs_col['u-BP']=input_test['u']-input_test['BP']
+    
+    inputs_col = normalize(inputs_col, df_1 = input_train_col, kind='custom')
+
+    return inputs_col
+ 
 def criteria_function(inputs_NGC, std_x, col_1, col_2):
+    # apply cuts to the globular cluster catalog in proper motion. Also apply basic color cuts to show CMD better
+    
     ra_cut = (inputs_NGC['pmra']>(inputs_NGC['pmra'].mean()-std_x*(inputs_NGC['pmra'].std()))) & (inputs_NGC['pmra']<(inputs_NGC['pmra'].mean()+std_x*(inputs_NGC['pmra'].std())))
     dec_cut = (inputs_NGC['pmdec']>(inputs_NGC['pmdec'].mean()-std_x*(inputs_NGC['pmdec'].std()))) & (inputs_NGC['pmdec']<(inputs_NGC['pmdec'].mean()+std_x*(inputs_NGC['pmdec'].std()))) 
-    # Apply the color cuts for machine learning 
-    ui_thres = 1.3
-    gz_thres = 0.05
-    ml_cut =  (inputs_NGC['u']-inputs_NGC['i'] >= ui_thres) & (inputs_NGC['u']-inputs_NGC['i'] <= 2.6) & (inputs_NGC['g']-inputs_NGC['z'] >= gz_thres)
+   
     criteria = ra_cut & dec_cut & (inputs_NGC['u']-inputs_NGC['G'] < col_1) & (inputs_NGC['u']-inputs_NGC['G'] > col_2)
+    
     return criteria
+
+def prob_frac(bin_width, inputs_NGC):
+    bin_loc = []
+    avg_prob_dwarf = []
+    avg_prob_giant = []
+    for data in inputs_NGC['G'].values:
+        temp_df = inputs_NGC[(inputs_NGC['G'] < data+bin_width)&(inputs_NGC['G'] > data-bin_width)]
+        avg_prob_dwarf.append(temp_df['dwarf'].mean())
+        avg_prob_giant.append(temp_df['giant'].mean())
+        bin_loc.append(data)
+    return avg_prob_dwarf, avg_prob_giant, bin_loc
+
+def lum_frac(bin_width, inputs_NGC):
+    fraction_giant = []
+    fraction_dwarf = []
+    bin_loc = []
+    for data in inputs_NGC['G'].values:
+        temp_df = inputs_NGC
+        temp_df_giant = inputs_NGC[(inputs_NGC['G'] < data+bin_width)&(temp_df['G'] > data-bin_width) & (inputs_NGC['class_binary']==1)]
+        temp_df_dwarf = inputs_NGC[(inputs_NGC['G'] < data+bin_width)&(temp_df['G'] > data-bin_width) & (inputs_NGC['class_binary']==0)]
+        temp_df_all = inputs_NGC[(inputs_NGC['G'] < data+bin_width)&(temp_df['G'] > data-bin_width)]
+        fraction_giant.append(float(temp_df_giant.shape[0])/temp_df_all.shape[0])
+        fraction_dwarf.append(float(temp_df_dwarf.shape[0])/temp_df_all.shape[0])
+        bin_loc.append(data)
+    return bin_loc, fraction_giant, fraction_dwarf
+
+def lime_synthesizer(rf, inputf_test, inputf_train, N, binary_class, frac=0.05):
+    
+    """
+    Parameters: inputf_test, inputf_train, N, binary_class, frac=0.05
+    inputf_test: testing inputs 
+    inputf_train: training inputs
+    N: Number of times to get fraction of data and find important features
+    binary_class: 0 for dwarf, 1 for giant
+    frac: 5% by default. Keep low! 
+    
+    Returns: A printed dataframe that contains the median important values given by lime
+    """
+    inputf_test['class_pred'] = rf.predict(inputf_test)
+    
+    explainer = lime.lime_tabular.LimeTabularExplainer(inputf_train.values, feature_names = inputf_train.columns, discretize_continuous=True)
+    
+    for i in range(0, N):
+        df = inputf_test[inputf_test['class_pred']==binary_class]
+        df = df.drop(columns=['class_pred'])
+        df = df.sample(frac=frac)
+        ints = range(0, df.shape[0])
+        print i
+
+        lime_vals = []
+        for index in ints:
+            print index, 'of', len(ints)
+            exp = explainer.explain_instance(df.values[index], rf.predict_proba, num_features=inputf_train.columns.shape[0])
+            lime_vals.append(exp.as_list())
+
+        array = np.asarray(lime_vals)
+
+        # This is only for dwarfs keep in mind
+        low_a=[]
+        high_a=[]
+        feature_a=[]
+        val_a = []
+        for i in range(0, array.shape[0]):
+            for j in range(0, array.shape[1]):
+                instance = re.split("< | <= | >", array[i, j][0])
+                if len(re.split("< | <= | >", array[i, j][0]))==2:
+                    feature = instance[0]
+                    low = instance[1]
+                    val = array[i,j,1]
+
+                    val_a.append(val)
+                    feature_a.append(feature)
+                    low_a.append(low)
+                    high_a.append('NaN')
+                if len(re.split("< | <= | >", array[i, j][0]))==3:
+                    low = instance[0]
+                    feature = instance[1]
+                    high = instance[2]
+                    val = array[i,j,1]
+
+                    val_a.append(val)
+                    feature_a.append(feature)
+                    low_a.append(low)  
+                    high_a.append(high)
+
+        df_lime_trans = pd.DataFrame()
+        df_lime_trans['low'] = low_a
+        df_lime_trans['high'] = high_a
+        df_lime_trans['feature'] = feature_a
+        df_lime_trans['val'] = val_a
+
+        grouped = df_lime_trans.groupby('feature')
+
+        df_lime = pd.DataFrame()
+
+        p={}
+        panel= pd.Panel(p)
+        for name,group in grouped:
+            p[name] = group
+        panel = pd.Panel(p)
+
+        low_median = [panel[name]['low'].dropna().astype(float).median() for name, group in grouped]
+        high_median = [panel[name]['high'].dropna().astype(float).median() for name, group in grouped]
+        val_median = [panel[name]['val'].dropna().astype(float).median() for name, group in grouped]
+        name = [name for name,group in grouped ]
+
+        df_lime['low'] = low_median
+        df_lime['feature'] = name
+        df_lime['high'] = high_median
+        df_lime['val'] = val_median
+
+        print df_lime.sort_values(by=['val'])
