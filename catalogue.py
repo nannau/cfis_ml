@@ -372,7 +372,7 @@ def normalize(df, df_1 = '', kind='std'):
                 max_value = df[feature_name].max()
                 min_value = df[feature_name].min()
                 result[feature_name] = (df[feature_name] - min_value) / (max_value - min_value)
-           
+
     # Apply a normalization from training set onto test set. 
     if kind == 'custom':
         for feature_name in df_1.columns:
@@ -381,14 +381,16 @@ def normalize(df, df_1 = '', kind='std'):
                 mean_value = df_1[feature_name].mean()
                 # Apply std and mean from train set onto test set. For globular clusters!
                 result[feature_name] = (df[feature_name] - mean_value) / std_value
-            
+
     return result
 
-def change_to_colour(input_test, input_train_col):
+
+def change_to_colour(input_test, input_train_col, norm=True):
     """
     Make data to train on colours and re normalize
     Returns: Normalized colors/input features
     """
+    
     inputs_col = pd.DataFrame()
 
     inputs_col['u-g']=input_test['u']-input_test['g']
@@ -400,8 +402,9 @@ def change_to_colour(input_test, input_train_col):
     inputs_col['u-RP']=input_test['u']-input_test['RP']
     inputs_col['u-BP']=input_test['u']-input_test['BP']
     
-    inputs_col = normalize(inputs_col, df_1 = input_train_col, kind='custom')
-
+    if norm:
+        inputs_col = normalize(inputs_col, df_1 = input_train_col, kind='custom')
+        
     return inputs_col
  
 def criteria_function(inputs_NGC, std_x, col_1, col_2):
