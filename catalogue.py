@@ -150,7 +150,6 @@ def load_data(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./data/p
     # Dered data for input
     inputs['u'] = df_carlo['u'].values - 4.239*EBV # I'm pretending these are SDSS band for u, but it is not and PS for the others!
     inputs['g'] = df_carlo['g'].values - 3.172*EBV #
-    inputs['dg'] = df_carlo['dg'].values #
     inputs['r'] = df_carlo['r'].values - 2.271*EBV #
     inputs['i'] = df_carlo['i'].values - 1.682*EBV #
     inputs['z'] = df_carlo['z'].values - 1.322*EBV #
