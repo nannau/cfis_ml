@@ -124,13 +124,20 @@ def load_data(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./data/p
     df['SNR'], df['nG'], df['nBP'], df['nRP'] = SNR.byteswap().newbyteorder(), nG.byteswap().newbyteorder(), nBP.byteswap().newbyteorder(), nRP.byteswap().newbyteorder()
 
     # Cut in uncertainties and select only stars having gaia photometry and apply it to each column
-    dTeff_thres = 10000.0 #120.0
-    dlogg_thres = 10000.0 #0.13
-    dfeh_thres = 10000.0 #0.2
+    dTeff_thres = 10000000.0 #120.0
+    dlogg_thres = 1000000.0 #0.13
+    dfeh_thres = 1000000.0 #0.2
     SNR_thres = 50.0 
-    FeH_thres = -40.0
-        
-    criteria = (df['dTeff'] <=dTeff_thres) & (df['dlogg']<=dlogg_thres) & (df['dfeh']<=dfeh_thres) & (df['SNR']>=SNR_thres) & (df['feh']>=FeH_thres) &(df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)
+    FeH_thres = -40000.0
+    uncert_thres=0.2
+
+    criteria_spec = (df['SNR']>=SNR_thres)# (df['dTeff'] <=dTeff_thres) & (df['dlogg']<=dlogg_thres) & (df['dfeh']<=dfeh_thres) & (df['SNR']>=SNR_thres) & (df['feh']>=FeH_thres)
+    
+    criteria_phot = (np.abs(df['u'])<50)&(np.abs(df['g'])<50)&(np.abs(df['r'])<50)&(np.abs(df['i'])<50)&(np.abs(df['z'])<50)&(np.abs(df['y'])<50)&(np.abs(df['G'])<50)&(np.abs(df['BP'])<50)&(np.abs(df['RP'])<50)
+    
+    criteria_error = (np.abs(df['du'])<=uncert_thres)&(np.abs(df['dg'])<=uncert_thres)&(np.abs(df['dr'])<=uncert_thres)&(np.abs(df['di'])<=uncert_thres)&(np.abs(df['dz'])<=uncert_thres)&(np.abs(df['dy'])<=uncert_thres)&(df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)&(df['nG']>0)&(df['nBP']>0)&(df['nRP']>0)
+    
+    criteria = criteria_spec & criteria_phot & criteria_error
     
     df_filtered = df[criteria]
     df_filtered.reset_index()
@@ -269,7 +276,7 @@ def monte_carlo_glob(df):
     
     nb_increase=10 # Number of montecarlo sample 
     size = len(df['u'])
-    df_old = df
+    df_old = df.copy()
 
     for nb in range(1,nb_increase):
         df_tmp = df_old
@@ -299,7 +306,7 @@ def monte_carlo(df):
     
     nb_increase=10 # Number of montecarlo sample 
     size = len(df['u'])
-    df_old = df
+    df_old = df.copy()
 
     for nb in range(1,nb_increase):
         df_tmp = df_old
