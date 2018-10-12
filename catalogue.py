@@ -124,14 +124,14 @@ def load_data(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./data/p
     df['SNR'], df['nG'], df['nBP'], df['nRP'] = SNR.byteswap().newbyteorder(), nG.byteswap().newbyteorder(), nBP.byteswap().newbyteorder(), nRP.byteswap().newbyteorder()
 
     # Cut in uncertainties and select only stars having gaia photometry and apply it to each column
-    dTeff_thres = 10000000.0 #120.0
-    dlogg_thres = 1000000.0 #0.13
-    dfeh_thres = 1000000.0 #0.2
+    dTeff_thres = 10000.0 #120.0
+    dlogg_thres = 10000.0 #0.13
+    dfeh_thres = 1000.0 #0.2
     SNR_thres = 50.0 
-    FeH_thres = -40000.0
+    FeH_thres = -400.0
     uncert_thres=0.2
 
-    criteria_spec = (df['SNR']>=SNR_thres)# (df['dTeff'] <=dTeff_thres) & (df['dlogg']<=dlogg_thres) & (df['dfeh']<=dfeh_thres) & (df['SNR']>=SNR_thres) & (df['feh']>=FeH_thres)
+    criteria_spec = (df['SNR']>=SNR_thres)# & (df['dTeff'] <=dTeff_thres) & (df['dlogg']<=dlogg_thres) & (df['dfeh']<=dfeh_thres) & (df['SNR']>=SNR_thres) & (df['feh']>=FeH_thres)
     
     criteria_phot = (np.abs(df['u'])<50)&(np.abs(df['g'])<50)&(np.abs(df['r'])<50)&(np.abs(df['i'])<50)&(np.abs(df['z'])<50)&(np.abs(df['y'])<50)&(np.abs(df['G'])<50)&(np.abs(df['BP'])<50)&(np.abs(df['RP'])<50)
     
@@ -232,15 +232,14 @@ def load_data_glob(filename='./data/cfis_ps_segue_gaia.fits', dust_filename='./d
     df['dy'] = dy.byteswap().newbyteorder()
     df['nG'], df['nBP'], df['nRP'] = nG.byteswap().newbyteorder(), nBP.byteswap().newbyteorder(), nRP.byteswap().newbyteorder()
     df['pmra'], df['pmdec'] = pmra.byteswap().newbyteorder(), pmdec.byteswap().newbyteorder()
-         
-    #criteria = (df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)
-    
-    df_filtered = df#[criteria]
+             
+    df_filtered = df.copy()
     df_filtered.reset_index()
     
     # Do a monte-carlo sample
     df_carlo = df_filtered#monte_carlo_glob(df_filtered)
     df_carlo.reset_index(drop=True)
+    
     # Calculate the extinction
     EBV=get_EBV(dust_filename, df_carlo['ra'],df_carlo['dec'])
     
@@ -279,7 +278,7 @@ def monte_carlo_glob(df):
     df_old = df.copy()
 
     for nb in range(1,nb_increase):
-        df_tmp = df_old
+        df_tmp = df_old.copy()
         df_n = pd.DataFrame()
         df_n['u'] = df_old['u'].values + np.random.normal(0.0, 1.0, size)*df_old['du'].values
         df_n['g'] = df_old['g'].values + np.random.normal(0.0, 1.0, size)*df_old['dg'].values
@@ -309,22 +308,20 @@ def monte_carlo(df):
     df_old = df.copy()
 
     for nb in range(1,nb_increase):
-        df_tmp = df_old
-        df_n = pd.DataFrame()
-        df_n['u'] = df_old['u'].values + np.random.normal(0.0, 1.0, size)*df_old['du'].values
-        df_n['g'] = df_old['g'].values + np.random.normal(0.0, 1.0, size)*df_old['dg'].values
-        df_n['r'] = df_old['r'].values + np.random.normal(0.0, 1.0, size)*df_old['dr'].values
-        df_n['i'] = df_old['i'].values + np.random.normal(0.0, 1.0, size)*df_old['di'].values
-        df_n['z'] = df_old['z'].values + np.random.normal(0.0, 1.0, size)*df_old['dz'].values
-        df_n['y'] = df_old['y'].values + np.random.normal(0.0, 1.0, size)*df_old['dy'].values
+        df_n = df_old.copy()
         
-        df_n['Teff'] = df_old['Teff'].values + np.random.normal(0.0, 1.0, size)*df_old['dTeff'].values        
-        df_n['logg'] = df_old['logg'].values + np.random.normal(0.0, 1.0, size)*df_old['dlogg'].values
-        df_n['feh'] = df_old['feh'].values + np.random.normal(0.0, 1.0, size)*df_old['dfeh'].values
-
-        df_tmp.update(df_n)
+        df_n['u'] = df_old['u'].values + np.random.normal(0, 1.0, size)*df_old['du'].values
+        df_n['g'] = df_old['g'].values + np.random.normal(0, 1.0, size)*df_old['dg'].values
+        df_n['r'] = df_old['r'].values + np.random.normal(0, 1.0, size)*df_old['dr'].values
+        df_n['i'] = df_old['i'].values + np.random.normal(0, 1.0, size)*df_old['di'].values
+        df_n['z'] = df_old['z'].values + np.random.normal(0, 1.0, size)*df_old['dz'].values
+        df_n['y'] = df_old['y'].values + np.random.normal(0, 1.0, size)*df_old['dy'].values
         
-        df = pd.concat([df, df_tmp], ignore_index=True)
+        df_n['Teff'] = df_old['Teff'].values + np.random.normal(0, 1.0, size)*df_old['dTeff'].values        
+        df_n['logg'] = df_old['logg'].values + np.random.normal(0, 1.0, size)*df_old['dlogg'].values
+        df_n['feh'] = df_old['feh'].values + np.random.normal(0, 1.0, size)*df_old['dfeh'].values
+        
+        df = pd.concat([df, df_n], ignore_index=True)
 
     return df
 
