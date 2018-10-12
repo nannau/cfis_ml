@@ -125,23 +125,27 @@ def load_data(filename='/home/nannau/notebooks/nannau/data/cfis_ps_segue_gaia.fi
     df['logg'], df['feh'], df['dTeff'] = logg.byteswap().newbyteorder(), feh.byteswap().newbyteorder(), dTeff.byteswap().newbyteorder()
     df['dlogg'], df['dfeh'] = dlogg.byteswap().newbyteorder(), dfeh.byteswap().newbyteorder()
     df['SNR'], df['nG'], df['nBP'], df['nRP'] = SNR.byteswap().newbyteorder(), nG.byteswap().newbyteorder(), nBP.byteswap().newbyteorder(), nRP.byteswap().newbyteorder()
-    
-    # Cut in uncertainties and select only stars having gaia photometry and apply it to each column
-    dTeff_thres = 10000.0 #120.0
-    dlogg_thres = 10000.0 #0.13
-    dfeh_thres = 10000.0 #0.2
-    SNR_thres = 50.0 
-    FeH_thres = -40.0
         
-    criteria = (df['dTeff'] <=dTeff_thres) & (df['dlogg']<=dlogg_thres) & (df['dfeh']<=dfeh_thres) & (df['SNR']>=SNR_thres) & (df['feh']>=FeH_thres) &(df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)
+    # Cut in uncertainties and select only stars having gaia photometry and apply it to each column
+    dTeff_thres = 120.0 #120.0
+    dlogg_thres = 0.13 #0.13
+    dfeh_thres = .2 #0.2
+    SNR_thres = 35.0 
+    FeH_thres = -40000.0
+    uncert_thres=0.2
+
+    criteria_spec = (df['SNR']>=SNR_thres)# (df['dTeff'] <=dTeff_thres) & (df['dlogg']<=dlogg_thres) & (df['dfeh']<=dfeh_thres) & (df['SNR']>=SNR_thres) & (df['feh']>=FeH_thres)
     
-    df = df[criteria]
-    df.reset_index()
+    criteria_phot = (np.abs(df['u'])<50)&(np.abs(df['g'])<50)&(np.abs(df['r'])<50)&(np.abs(df['i'])<50)&(np.abs(df['z'])<50)&(np.abs(df['y'])<50)&(np.abs(df['G'])<50)&(np.abs(df['BP'])<50)&(np.abs(df['RP'])<50)
     
-    # Do a monte-carlo sample
-    if monte==True:
-        df = monte_carlo(df)
-        df.reset_index(drop=True)
+    criteria_error = (np.abs(df['du'])<=uncert_thres)&(np.abs(df['dg'])<=uncert_thres)&(np.abs(df['dr'])<=uncert_thres)&(np.abs(df['di'])<=uncert_thres)&(np.abs(df['dz'])<=uncert_thres)&(np.abs(df['dy'])<=uncert_thres)&(df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)&(df['nG']>0)&(df['nBP']>0)&(df['nRP']>0)
+    
+    criteria = criteria_spec & criteria_phot & criteria_error
+    
+    df_filtered = df.copy()#[criteria]
+    df_filtered.reset_index()
+
+    df = df_filtered.copy()
     # Calculate the extinction
     EBV=get_EBV(dust_filename, df['ra'],df['dec'])
     
@@ -221,13 +225,27 @@ def load_data_glob(filename='/home/nannau/notebooks/nannau/data/cfis_ps_segue_ga
     df['nG'], df['nBP'], df['nRP'] = nG.byteswap().newbyteorder(), nBP.byteswap().newbyteorder(), nRP.byteswap().newbyteorder()
     df['pmra'], df['pmdec'] = pmra.byteswap().newbyteorder(), pmdec.byteswap().newbyteorder()
          
-    #criteria = (df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)
+    # Cut in uncertainties and select only stars having gaia photometry and apply it to each column
+    dTeff_thres = 120.0 #120.0
+    dlogg_thres = 0.13 #0.13
+    dfeh_thres = .2 #0.2
+    SNR_thres = 35.0 
+    FeH_thres = -40000.0
+    uncert_thres=0.2
+
+    criteria_spec = (df['SNR']>=SNR_thres)# (df['dTeff'] <=dTeff_thres) & (df['dlogg']<=dlogg_thres) & (df['dfeh']<=dfeh_thres) & (df['SNR']>=SNR_thres) & (df['feh']>=FeH_thres)
     
-    df_filtered = df#[criteria]
+    criteria_phot = (np.abs(df['u'])<50)&(np.abs(df['g'])<50)&(np.abs(df['r'])<50)&(np.abs(df['i'])<50)&(np.abs(df['z'])<50)&(np.abs(df['y'])<50)&(np.abs(df['G'])<50)&(np.abs(df['BP'])<50)&(np.abs(df['RP'])<50)
+    
+    criteria_error = (np.abs(df['du'])<=uncert_thres)&(np.abs(df['dg'])<=uncert_thres)&(np.abs(df['dr'])<=uncert_thres)&(np.abs(df['di'])<=uncert_thres)&(np.abs(df['dz'])<=uncert_thres)&(np.abs(df['dy'])<=uncert_thres)&(df['nG']>0) &(df['nBP']>0) &(df['nRP']>0)&(df['nG']>0)&(df['nBP']>0)&(df['nRP']>0)
+    
+    criteria = criteria_spec & criteria_phot & criteria_error
+    
+    df_filtered = df[criteria]
     df_filtered.reset_index()
-    
+
     # Do a monte-carlo sample
-    df_carlo = df_filtered#monte_carlo_glob(df_filtered)
+    df_carlo = df_filtered.copy()#monte_carlo_glob(df_filtered)
     df_carlo.reset_index(drop=True)
     # Calculate the extinction
     EBV=get_EBV(dust_filename, df_carlo['ra'],df_carlo['dec'])
